@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+void parseDotEnv(const char* s, cdotenvVars* vars);
 void loadDotEnv(const char* filename);
 int cdotenvNextToken(size_t *offset, const char *buffer, size_t size);
 
@@ -42,6 +43,65 @@ static inline void cdotenvVarsAppend(cdotenvVars *vars, cdotenvKV kv) {
 };
 
 #ifdef CDOTENV_STB_IMPLEMENTATION
+int cdotenvNextToken(size_t *offset, const char *buffer, size_t size) {
+    static bool singleQuoteOpen = false;
+    static bool doubleQuoteOpen = false;
+    static bool tripleSingleQuoteOpen = false;
+    static bool tripleDoubleQuoteOpen = false;
+
+    if (!buffer || !size || *offset >= size) return CDOTENV_TOKEN_TYPE_EOF;
+
+    if (buffer[*offset] == '=') {
+        (*offset)++;
+        return CDOTENV_TOKEN_TYPE_EQUALS;
+    }
+
+    if (buffer[*offset] == '#') {
+        (*offset)++; // TODO: advance to next newline or EOF
+        return CDOTENV_TOKEN_TYPE_HASH;
+    }
+
+    if (buffer[*offset] == '"' && buffer[*offset + 1] == '"' && buffer[*offset + 2] == '"') {
+        (*offset) += 3;
+        tripleDoubleQuoteOpen = !tripleDoubleQuoteOpen;
+        return tripleDoubleQuoteOpen ? CDOTENV_TOKEN_TYPE_DOUBLE_QUOTE_OPEN_TRIPLE : CDOTENV_TOKEN_TYPE_DOUBLE_QUOTE_CLOSE_TRIPLE;
+    }
+
+    if (buffer[*offset] == '\'' && buffer[*offset + 1] == '\'' && buffer[*offset + 2] == '\'') {
+        (*offset) += 3;
+        tripleSingleQuoteOpen = !tripleSingleQuoteOpen;
+        return tripleSingleQuoteOpen ? CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_OPEN_TRIPLE : CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_CLOSE_TRIPLE;
+    }
+
+    if (buffer[*offset] == '"') {
+        (*offset)++;
+        doubleQuoteOpen = !doubleQuoteOpen;
+        return doubleQuoteOpen ? CDOTENV_TOKEN_TYPE_DOUBLE_QUOTE_OPEN : CDOTENV_TOKEN_TYPE_DOUBLE_QUOTE_CLOSE;
+    }
+
+    if (buffer[*offset] == '\'') {
+        (*offset)++;
+        doubleQuoteOpen = !doubleQuoteOpen;
+        return doubleQuoteOpen ? CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_OPEN : CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_CLOSE;
+    }
+
+    // TODO: Implement remaining tokens - string
+
+    return CDOTENV_TOKEN_TYPE_ERROR;
+}
+
+void parseDotEnv(const char* s, size_t size, cdotenvVars* vars) {
+    if (vars == NULL) return;
+    size_t offset = 0;
+    int currentToken = cdotenvNextToken(&offset, s, size);
+    while (currentToken != CDOTENV_TOKEN_TYPE_EOF && currentToken != CDOTENV_TOKEN_TYPE_ERROR) {
+        switch (currentToken) {
+            // TODO: Implement token handling, build vars, write to environment
+        }
+        currentToken = cdotenvNextToken(&offset, s, size);
+    }
+}
+
 void loadDotEnv(const char* filename) {
     FILE *file = fopen(filename, "r");
     if (!file) return;
@@ -58,40 +118,9 @@ void loadDotEnv(const char* filename) {
     fread(buffer, size, 1, file);
     fclose(file);
 
-    size_t offset = 0;
     cdotenvVars vars = {NULL, 0, 0 };
-    int currentToken = cdotenvNextToken(&offset, buffer, size);
-    while (currentToken != CDOTENV_TOKEN_TYPE_EOF && currentToken != CDOTENV_TOKEN_TYPE_ERROR) {
-        switch (currentToken) {
-            // TODO: Implement token handling, build vars, write to environment
-        }
-        currentToken = cdotenvNextToken(&offset, buffer, size);
-    }
+    parseDotEnv(buffer, size, &vars);
 }
-
-int cdotenvNextToken(size_t *offset, const char *buffer, size_t size) {
-    static bool singleQuoteOpen = false;
-    static bool doubleQuoteOpen = false;
-    static bool tripleSingleQuoteOpen = false;
-    static bool tripleDoubleQuoteOpen = false;
-
-    if (!buffer || !size || *offset >= size) return CDOTENV_TOKEN_TYPE_EOF;
-
-    if (buffer[*offset] == '=') {
-        (*offset)++;
-        return CDOTENV_TOKEN_TYPE_EQUALS;
-    }
-
-    if (buffer[*offset] == '#') {
-        (*offset)++;
-        return CDOTENV_TOKEN_TYPE_HASH;
-    }
-
-    // TODO: Implement remaining tokens
-
-    return CDOTENV_TOKEN_TYPE_ERROR;
-}
-
 #endif
 
 #endif //CDOTENV_STB_H
