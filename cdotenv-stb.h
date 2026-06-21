@@ -53,17 +53,17 @@ int cdotenvNextToken(size_t *offset, const char *buffer, size_t size) {
 
     if (!buffer || !size || *offset >= size) return CDOTENV_TOKEN_TYPE_EOF;
 
-    if (buffer[*offset] == '=') {
+    if (buffer[*offset] == '=' && !(tripleSingleQuoteOpen || tripleDoubleQuoteOpen || doubleQuoteOpen || singleQuoteOpen)) {
         (*offset)++;
         return CDOTENV_TOKEN_TYPE_EQUALS;
     }
 
-    if (buffer[*offset] == '\n') {
+    if (buffer[*offset] == '\n' && !(tripleSingleQuoteOpen || tripleDoubleQuoteOpen)) {
         (*offset)++;
         return CDOTENV_TOKEN_TYPE_NEWLINE;
     }
 
-    if (buffer[*offset] == '#') {
+    if (buffer[*offset] == '#' && !(tripleSingleQuoteOpen || tripleDoubleQuoteOpen || doubleQuoteOpen || singleQuoteOpen)) {
         while (*offset < size && buffer[*offset] != '\n') (*offset)++;
         (*offset)++;
         return CDOTENV_TOKEN_TYPE_HASH;
@@ -81,13 +81,13 @@ int cdotenvNextToken(size_t *offset, const char *buffer, size_t size) {
         return tripleSingleQuoteOpen ? CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_OPEN_TRIPLE : CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_CLOSE_TRIPLE;
     }
 
-    if (buffer[*offset] == '"') {
+    if (buffer[*offset] == '"' && !singleQuoteOpen && !tripleSingleQuoteOpen && !tripleDoubleQuoteOpen) {
         (*offset)++;
         doubleQuoteOpen = !doubleQuoteOpen;
         return doubleQuoteOpen ? CDOTENV_TOKEN_TYPE_DOUBLE_QUOTE_OPEN : CDOTENV_TOKEN_TYPE_DOUBLE_QUOTE_CLOSE;
     }
 
-    if (buffer[*offset] == '\'') {
+    if (buffer[*offset] == '\'' && !tripleSingleQuoteOpen && !tripleDoubleQuoteOpen) {
         (*offset)++;
         singleQuoteOpen = !singleQuoteOpen;
         return singleQuoteOpen ? CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_OPEN : CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_CLOSE;
@@ -95,7 +95,6 @@ int cdotenvNextToken(size_t *offset, const char *buffer, size_t size) {
 
     while ((*offset) < size) {
         if (tripleDoubleQuoteOpen && buffer[*offset] == '"' && buffer[*offset + 1] == '"' && buffer[*offset + 2] == '"') {
-            (*offset)--;
             break;
         }
         if (doubleQuoteOpen && buffer[*offset] == '"') {
@@ -106,7 +105,6 @@ int cdotenvNextToken(size_t *offset, const char *buffer, size_t size) {
         }
 
         if (tripleSingleQuoteOpen && buffer[*offset] == '\'' && buffer[*offset + 1] == '\'' && buffer[*offset + 2] == '\'') {
-            (*offset)--;
             break;
         }
         if (singleQuoteOpen && buffer[*offset] == '\'') {
@@ -116,7 +114,7 @@ int cdotenvNextToken(size_t *offset, const char *buffer, size_t size) {
             return CDOTENV_TOKEN_TYPE_ERROR;
         }
 
-        if (!singleQuoteOpen && buffer[*offset] == '"') {
+        if (!singleQuoteOpen && !tripleDoubleQuoteOpen && !tripleSingleQuoteOpen && buffer[*offset] == '"') {
             return CDOTENV_TOKEN_TYPE_ERROR;
         }
 
