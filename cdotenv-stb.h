@@ -51,84 +51,99 @@ int cdotenvNextToken(size_t *offset, const char *buffer, size_t size) {
     static bool tripleSingleQuoteOpen = false;
     static bool tripleDoubleQuoteOpen = false;
 
-    if (!buffer || !size || *offset >= size) return CDOTENV_TOKEN_TYPE_EOF;
-
-    if (buffer[*offset] == '=' && !(tripleSingleQuoteOpen || tripleDoubleQuoteOpen || doubleQuoteOpen || singleQuoteOpen)) {
-        (*offset)++;
-        return CDOTENV_TOKEN_TYPE_EQUALS;
+    if (!buffer || !size || *offset >= size) {
+        return CDOTENV_TOKEN_TYPE_EOF;
     }
 
-    if (buffer[*offset] == '\n' && !(tripleSingleQuoteOpen || tripleDoubleQuoteOpen)) {
+    bool quoted = singleQuoteOpen || doubleQuoteOpen || tripleSingleQuoteOpen || tripleDoubleQuoteOpen;
+    char c = buffer[*offset];
+
+    if (!quoted) {
+        if (c == '=') {
+            (*offset)++;
+            return CDOTENV_TOKEN_TYPE_EQUALS;
+        }
+
+        if (c == '#') {
+            while (*offset < size && buffer[*offset] != '\n') (*offset)++;
+            if (*offset < size) (*offset)++;
+            return CDOTENV_TOKEN_TYPE_HASH;
+        }
+    }
+
+    if (c == '\n' && !tripleSingleQuoteOpen && !tripleDoubleQuoteOpen) {
         (*offset)++;
         return CDOTENV_TOKEN_TYPE_NEWLINE;
     }
 
-    if (buffer[*offset] == '#' && !(tripleSingleQuoteOpen || tripleDoubleQuoteOpen || doubleQuoteOpen || singleQuoteOpen)) {
-        while (*offset < size && buffer[*offset] != '\n') (*offset)++;
-        (*offset)++;
-        return CDOTENV_TOKEN_TYPE_HASH;
-    }
-
-    if (buffer[*offset] == '"' && buffer[*offset + 1] == '"' && buffer[*offset + 2] == '"') {
+    if (*offset + 2 < size && c == '"' && buffer[*offset + 1] == '"' && buffer[*offset + 2] == '"') {
         (*offset) += 3;
         tripleDoubleQuoteOpen = !tripleDoubleQuoteOpen;
-        return tripleDoubleQuoteOpen ? CDOTENV_TOKEN_TYPE_DOUBLE_QUOTE_OPEN_TRIPLE : CDOTENV_TOKEN_TYPE_DOUBLE_QUOTE_CLOSE_TRIPLE;
+
+        return tripleDoubleQuoteOpen
+            ? CDOTENV_TOKEN_TYPE_DOUBLE_QUOTE_OPEN_TRIPLE
+            : CDOTENV_TOKEN_TYPE_DOUBLE_QUOTE_CLOSE_TRIPLE;
     }
 
-    if (buffer[*offset] == '\'' && buffer[*offset + 1] == '\'' && buffer[*offset + 2] == '\'') {
+    if (*offset + 2 < size && c == '\'' && buffer[*offset + 1] == '\'' && buffer[*offset + 2] == '\'') {
         (*offset) += 3;
         tripleSingleQuoteOpen = !tripleSingleQuoteOpen;
-        return tripleSingleQuoteOpen ? CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_OPEN_TRIPLE : CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_CLOSE_TRIPLE;
+
+        return tripleSingleQuoteOpen
+            ? CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_OPEN_TRIPLE
+            : CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_CLOSE_TRIPLE;
     }
 
-    if (buffer[*offset] == '"' && !singleQuoteOpen && !tripleSingleQuoteOpen && !tripleDoubleQuoteOpen) {
+    if (c == '"' && !singleQuoteOpen && !tripleSingleQuoteOpen && !tripleDoubleQuoteOpen) {
         (*offset)++;
         doubleQuoteOpen = !doubleQuoteOpen;
-        return doubleQuoteOpen ? CDOTENV_TOKEN_TYPE_DOUBLE_QUOTE_OPEN : CDOTENV_TOKEN_TYPE_DOUBLE_QUOTE_CLOSE;
+
+        return doubleQuoteOpen
+            ? CDOTENV_TOKEN_TYPE_DOUBLE_QUOTE_OPEN
+            : CDOTENV_TOKEN_TYPE_DOUBLE_QUOTE_CLOSE;
     }
 
-    if (buffer[*offset] == '\'' && !tripleSingleQuoteOpen && !tripleDoubleQuoteOpen) {
+    if (c == '\'' && !tripleSingleQuoteOpen && !tripleDoubleQuoteOpen) {
         (*offset)++;
         singleQuoteOpen = !singleQuoteOpen;
-        return singleQuoteOpen ? CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_OPEN : CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_CLOSE;
+
+        return singleQuoteOpen
+            ? CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_OPEN
+            : CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_CLOSE;
     }
 
-    while ((*offset) < size) {
-        if (tripleDoubleQuoteOpen && buffer[*offset] == '"' && buffer[*offset + 1] == '"' && buffer[*offset + 2] == '"') {
-            break;
-        }
-        if (doubleQuoteOpen && buffer[*offset] == '"') {
-            break;
-        }
-        if (doubleQuoteOpen && buffer[*offset] == '\n') {
+    while (*offset < size) {
+        c = buffer[*offset];
+
+        bool inTriple = tripleSingleQuoteOpen || tripleDoubleQuoteOpen;
+        bool inNormal = singleQuoteOpen || doubleQuoteOpen;
+        bool inAnyQuote = inTriple || inNormal;
+
+        if (tripleDoubleQuoteOpen &&
+            *offset + 2 < size && c == '"' && buffer[*offset + 1] == '"' && buffer[*offset + 2] == '"') break;
+        if (tripleSingleQuoteOpen &&
+            *offset + 2 < size && c == '\'' && buffer[*offset + 1] == '\'' && buffer[*offset + 2] == '\'') break;
+
+        if (doubleQuoteOpen && c == '"') break;
+        if (singleQuoteOpen && c == '\'') break;
+
+        if ((singleQuoteOpen || doubleQuoteOpen) && c == '\n') {
             return CDOTENV_TOKEN_TYPE_ERROR;
         }
 
-        if (tripleSingleQuoteOpen && buffer[*offset] == '\'' && buffer[*offset + 1] == '\'' && buffer[*offset + 2] == '\'') {
-            break;
-        }
-        if (singleQuoteOpen && buffer[*offset] == '\'') {
-            break;
-        }
-        if (singleQuoteOpen && buffer[*offset] == '\n') {
-            return CDOTENV_TOKEN_TYPE_ERROR;
+        if (!inAnyQuote) {
+            if (c == '=') break;
+            if (c == '\n') break;
+
+            if (c == ' ' || c == '\t') {
+                return CDOTENV_TOKEN_TYPE_ERROR;
+            }
+
+            if (c == '"') {
+                return CDOTENV_TOKEN_TYPE_ERROR;
+            }
         }
 
-        if (!singleQuoteOpen && !tripleDoubleQuoteOpen && !tripleSingleQuoteOpen && buffer[*offset] == '"') {
-            return CDOTENV_TOKEN_TYPE_ERROR;
-        }
-
-        if ((buffer[*offset] == ' ' || buffer[*offset] == '\t') && !(singleQuoteOpen || doubleQuoteOpen || tripleSingleQuoteOpen || tripleDoubleQuoteOpen)) {
-            return CDOTENV_TOKEN_TYPE_ERROR;
-        }
-
-        if (buffer[*offset] == '=' && !(singleQuoteOpen || doubleQuoteOpen || tripleSingleQuoteOpen || tripleDoubleQuoteOpen)) {
-            break;
-        }
-
-        if (buffer[*offset] == '\n' && !(tripleSingleQuoteOpen || tripleDoubleQuoteOpen)) {
-            break;
-        }
         (*offset)++;
     }
 
