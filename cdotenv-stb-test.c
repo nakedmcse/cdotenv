@@ -136,7 +136,49 @@ void test_tokenizer(void) {
     printf("Tokenizer test passed\n");
 }
 
+void test_tokenizer_error(void) {
+    const char* simpleError = "key=value=value2";
+    const char* unclosedQuote = "key='unclosed";
+    size_t len = strlen(simpleError);
+    size_t ulen = strlen(unclosedQuote);
+    size_t offset = 0;
+    size_t previous = 0;
+
+    previous = offset;
+    int token = cdotenvNextToken(&offset, simpleError, len);
+    assert(token == CDOTENV_TOKEN_TYPE_STRING);
+    char *key = strndup(simpleError+previous, offset-previous);
+    assert(strncmp(key, "key", 3) == 0);
+
+    token = cdotenvNextToken(&offset, simpleError, len);
+    assert(token == CDOTENV_TOKEN_TYPE_EQUALS);
+
+    token = cdotenvNextToken(&offset, simpleError, len);
+    assert(token == CDOTENV_TOKEN_TYPE_ERROR);
+    assert(offset == 9);
+
+    offset = 0;
+    previous = 0;
+    token = cdotenvNextToken(&offset, unclosedQuote, ulen);
+    assert(token == CDOTENV_TOKEN_TYPE_STRING);
+    char *ukey = strndup(unclosedQuote+previous, offset-previous);
+    assert(strncmp(ukey, "key", 3) == 0);
+
+    token = cdotenvNextToken(&offset, unclosedQuote, ulen);
+    assert(token == CDOTENV_TOKEN_TYPE_EQUALS);
+
+    token = cdotenvNextToken(&offset, unclosedQuote, ulen);
+    assert(token == CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_OPEN);
+
+    token = cdotenvNextToken(&offset, unclosedQuote, ulen);
+    assert(token == CDOTENV_TOKEN_TYPE_ERROR);
+    assert(offset == ulen);
+
+    printf("Tokenizer error test passed\n");
+}
+
 int main(void) {
     test_tokenizer();
+    test_tokenizer_error();
     return 0;
 }

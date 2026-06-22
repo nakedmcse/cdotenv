@@ -50,17 +50,26 @@ int cdotenvNextToken(size_t *offset, const char *buffer, size_t size) {
     static bool doubleQuoteOpen = false;
     static bool tripleSingleQuoteOpen = false;
     static bool tripleDoubleQuoteOpen = false;
+    static bool seenEquals = false;
+
+    bool quoted = singleQuoteOpen || doubleQuoteOpen || tripleSingleQuoteOpen || tripleDoubleQuoteOpen;
 
     if (!buffer || !size || *offset >= size) {
+        singleQuoteOpen = false;
+        doubleQuoteOpen = false;
+        tripleSingleQuoteOpen = false;
+        tripleDoubleQuoteOpen = false;
+        seenEquals = false;
+        if (quoted) return CDOTENV_TOKEN_TYPE_ERROR;
         return CDOTENV_TOKEN_TYPE_EOF;
     }
 
-    bool quoted = singleQuoteOpen || doubleQuoteOpen || tripleSingleQuoteOpen || tripleDoubleQuoteOpen;
     char c = buffer[*offset];
 
     if (!quoted) {
         if (c == '=') {
             (*offset)++;
+            seenEquals = true;
             return CDOTENV_TOKEN_TYPE_EQUALS;
         }
 
@@ -73,6 +82,7 @@ int cdotenvNextToken(size_t *offset, const char *buffer, size_t size) {
 
     if (c == '\n' && !tripleSingleQuoteOpen && !tripleDoubleQuoteOpen) {
         (*offset)++;
+        seenEquals = false;
         return CDOTENV_TOKEN_TYPE_NEWLINE;
     }
 
@@ -128,18 +138,31 @@ int cdotenvNextToken(size_t *offset, const char *buffer, size_t size) {
         if (singleQuoteOpen && c == '\'') break;
 
         if ((singleQuoteOpen || doubleQuoteOpen) && c == '\n') {
+            singleQuoteOpen = false;
+            doubleQuoteOpen = false;
+            tripleSingleQuoteOpen = false;
+            tripleDoubleQuoteOpen = false;
+            seenEquals = false;
             return CDOTENV_TOKEN_TYPE_ERROR;
         }
 
         if (!inAnyQuote) {
-            if (c == '=') break;
+            if (c == '=') {
+                if (seenEquals) {
+                    seenEquals = false;
+                    return CDOTENV_TOKEN_TYPE_ERROR;
+                }
+                break;
+            }
             if (c == '\n') break;
 
             if (c == ' ' || c == '\t') {
+                seenEquals = false;
                 return CDOTENV_TOKEN_TYPE_ERROR;
             }
 
             if (c == '"') {
+                seenEquals = false;
                 return CDOTENV_TOKEN_TYPE_ERROR;
             }
         }
@@ -147,7 +170,9 @@ int cdotenvNextToken(size_t *offset, const char *buffer, size_t size) {
         (*offset)++;
     }
 
-    return CDOTENV_TOKEN_TYPE_STRING;
+    return quoted && *offset == size
+        ? CDOTENV_TOKEN_TYPE_ERROR
+        : CDOTENV_TOKEN_TYPE_STRING;
 }
 
 void parseDotEnv(const char* s, size_t size, cdotenvVars* vars) {
