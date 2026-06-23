@@ -5,10 +5,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 typedef struct cdotenvKV {
     char* key;
     char* value;
+    bool singleQuoted;
 } cdotenvKV;
 
 typedef struct cdotenvVars {
@@ -20,6 +22,8 @@ typedef struct cdotenvVars {
 void parseDotEnv(const char* s, size_t size, cdotenvVars* vars);
 void loadDotEnv(const char* filename);
 int cdotenvNextToken(size_t *offset, const char *buffer, size_t size);
+static bool cdotenvAppendStr(char **out, size_t *len, size_t *cap, const char *s, size_t n);
+char *cdotenvExpand(const char *s);
 
 #define CDOTENV_TOKEN_TYPE_ERROR -1
 #define CDOTENV_TOKEN_TYPE_EOF 0
@@ -45,6 +49,81 @@ static inline void cdotenvVarsAppend(cdotenvVars *vars, cdotenvKV kv) {
 };
 
 #ifdef CDOTENV_STB_IMPLEMENTATION
+static bool cdotenvAppendStr(char **out, size_t *len, size_t *cap, const char *s, size_t n) {
+    if (*len + n + 1 > *cap) {
+        size_t new_cap = *cap ? *cap : 64;
+
+        while (*len + n + 1 > new_cap) {
+            new_cap *= 2;
+        }
+
+        char *tmp = realloc(*out, new_cap);
+        if (!tmp) return false;
+
+        *out = tmp;
+        *cap = new_cap;
+    }
+
+    memcpy(*out + *len, s, n);
+    *len += n;
+    (*out)[*len] = '\0';
+
+    return true;
+}
+
+char *cdotenvExpand(const char *s) {
+    if (!s) return NULL;
+
+    char *out = NULL;
+    size_t len = 0;
+    size_t cap = 0;
+
+    for (size_t i = 0; s[i] != '\0';) {
+        if (s[i] == '$' && s[i + 1] == '{') {
+            const char *start = s + i + 2;
+            const char *end = strchr(start, '}');
+
+            if (end) {
+                size_t name_len = (size_t)(end - start);
+                char *name = malloc(name_len + 1);
+                if (!name) {
+                    free(out);
+                    return NULL;
+                }
+
+                memcpy(name, start, name_len);
+                name[name_len] = '\0';
+                const char *value = getenv(name);
+                free(name);
+
+                if (value) {
+                    if (!cdotenvAppendStr(&out, &len, &cap, value, strlen(value))) {
+                        free(out);
+                        return NULL;
+                    }
+                }
+
+                i = (size_t)(end - s) + 1;
+                continue;
+            }
+        }
+
+        if (!cdotenvAppendStr(&out, &len, &cap, s + i, 1)) {
+            free(out);
+            return NULL;
+        }
+
+        i++;
+    }
+
+    if (!out) {
+        out = malloc(1);
+        if (out) out[0] = '\0';
+    }
+
+    return out;
+}
+
 int cdotenvNextToken(size_t *offset, const char *buffer, size_t size) {
     static bool singleQuoteOpen = false;
     static bool doubleQuoteOpen = false;
@@ -178,12 +257,60 @@ int cdotenvNextToken(size_t *offset, const char *buffer, size_t size) {
 void parseDotEnv(const char* s, size_t size, cdotenvVars* vars) {
     if (vars == NULL) return;
     size_t offset = 0;
+    size_t previous = 0;
     int currentToken = cdotenvNextToken(&offset, s, size);
+    char *currentKey = NULL;
+    char *currentValue = NULL;
+    bool seenEquals = false;
+    bool inSingleQuote = false;
+
     while (currentToken != CDOTENV_TOKEN_TYPE_EOF && currentToken != CDOTENV_TOKEN_TYPE_ERROR) {
         switch (currentToken) {
-            // TODO: Implement token handling, build vars, write to environment
+            case CDOTENV_TOKEN_TYPE_STRING:
+                if (seenEquals && currentKey && currentValue) {
+                    const cdotenvKV kv = {currentKey, currentValue, inSingleQuote};
+                    cdotenvVarsAppend(vars, kv);
+                }
+                else if (seenEquals && currentKey) {
+                    currentValue = strndup(s+previous, offset-previous);
+                }
+                else {
+                    // TODO: Validate Key
+                    currentKey = strndup(s+previous, offset-previous);
+                }
+                break;
+
+            case CDOTENV_TOKEN_TYPE_EQUALS:
+                seenEquals = true;
+                break;
+
+            case CDOTENV_TOKEN_TYPE_NEWLINE:
+                seenEquals = false;
+                break;
+
+            case CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_OPEN:
+            case CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_OPEN_TRIPLE:
+                inSingleQuote = true;
+                break;
+
+            case CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_CLOSE:
+            case CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_CLOSE_TRIPLE:
+                inSingleQuote = false;
+                break;
+
+            default:
+                break;
         }
+        previous = offset;
         currentToken = cdotenvNextToken(&offset, s, size);
+    }
+
+    if (vars->count > 0) {
+        for (size_t i = 0; i < vars->count; i++) {
+            setenv(vars->items[i].key,
+                vars->items[i].singleQuoted ? vars->items[i].value : cdotenvExpand(vars->items[i].value),
+                1);
+        }
     }
 }
 
