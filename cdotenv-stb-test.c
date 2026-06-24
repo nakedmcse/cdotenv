@@ -177,8 +177,32 @@ void test_tokenizer_error(void) {
     printf("Tokenizer error test passed\n");
 }
 
+void test_parser(void) {
+    const char* simpleVariables = "var1=one\nvar2=two\nvar3='three'";
+    size_t simpleLen = strlen(simpleVariables);
+    cdotenvVars simpleVars = {NULL, 0, 0};
+
+    parseDotEnv(simpleVariables, simpleLen, &simpleVars);
+    assert(simpleVars.count == 3);
+    assert(strncmp(simpleVars.items[0].key, "var1", 4) == 0);
+    assert(strncmp(simpleVars.items[0].value, "one", 3) == 0);
+    assert(simpleVars.items[0].singleQuoted == false);
+    assert(strncmp(getenv("var1"), simpleVars.items[0].value, 3) == 0);
+    assert(strncmp(simpleVars.items[1].key, "var2", 4) == 0);
+    assert(strncmp(simpleVars.items[1].value, "two", 3) == 0);
+    assert(simpleVars.items[1].singleQuoted == false);
+    assert(strncmp(getenv("var2"), simpleVars.items[1].value, 3) == 0);
+    assert(strncmp(simpleVars.items[2].key, "var3", 4) == 0);
+    assert(strncmp(simpleVars.items[2].value, "three", 3) == 0);
+    assert(simpleVars.items[2].singleQuoted == true);
+    assert(strncmp(getenv("var3"), simpleVars.items[2].value, 3) == 0);
+
+    printf("Parser test passed\n");
+}
+
 int main(void) {
     test_tokenizer();
     test_tokenizer_error();
+    test_parser();
     return 0;
 }

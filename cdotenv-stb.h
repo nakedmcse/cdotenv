@@ -249,9 +249,16 @@ int cdotenvNextToken(size_t *offset, const char *buffer, size_t size) {
         (*offset)++;
     }
 
-    return quoted && *offset == size
-        ? CDOTENV_TOKEN_TYPE_ERROR
-        : CDOTENV_TOKEN_TYPE_STRING;
+    if (quoted && *offset == size) {
+        doubleQuoteOpen = false;
+        singleQuoteOpen = false;
+        tripleDoubleQuoteOpen = false;
+        tripleSingleQuoteOpen = false;
+        seenEquals = false;
+        return CDOTENV_TOKEN_TYPE_ERROR;
+    }
+
+    return CDOTENV_TOKEN_TYPE_STRING;
 }
 
 void parseDotEnv(const char* s, size_t size, cdotenvVars* vars) {
@@ -267,12 +274,10 @@ void parseDotEnv(const char* s, size_t size, cdotenvVars* vars) {
     while (currentToken != CDOTENV_TOKEN_TYPE_EOF && currentToken != CDOTENV_TOKEN_TYPE_ERROR) {
         switch (currentToken) {
             case CDOTENV_TOKEN_TYPE_STRING:
-                if (seenEquals && currentKey && currentValue) {
+                if (seenEquals && currentKey) {
+                    currentValue = strndup(s+previous, offset-previous);
                     const cdotenvKV kv = {currentKey, currentValue, inSingleQuote};
                     cdotenvVarsAppend(vars, kv);
-                }
-                else if (seenEquals && currentKey) {
-                    currentValue = strndup(s+previous, offset-previous);
                 }
                 else {
                     // TODO: Validate Key
