@@ -19,9 +19,14 @@ typedef struct cdotenvVars {
     size_t capacity;
 } cdotenvVars;
 
-void parseDotEnv(const char* s, size_t size, cdotenvVars* vars);
-void loadDotEnv(const char* filename);
-int cdotenvNextToken(size_t *offset, const char *buffer, size_t size);
+typedef struct cdotenvReturn {
+    int errorCode;
+    size_t offset;
+} cdotenvReturn;
+
+void parseDotEnv(const char* s, size_t size, cdotenvVars* vars, cdotenvReturn* status);
+void loadDotEnv(const char* filename, cdotenvReturn* status);
+int cdotenvNextToken(size_t *offset, const char *buffer, size_t size, bool reset);
 static bool cdotenvAppendStr(char **out, size_t *len, size_t *cap, const char *s, size_t n);
 char *cdotenvExpand(const char *s);
 
@@ -39,6 +44,9 @@ char *cdotenvExpand(const char *s);
 #define CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_OPEN_TRIPLE 10
 #define CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_CLOSE 11
 #define CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_CLOSE_TRIPLE 12
+
+#define CDOTENV_ERROR -1
+#define CDOTENV_OK 0
 
 static inline void cdotenvVarsAppend(cdotenvVars *vars, cdotenvKV kv) {
     if (vars->count >= vars->capacity) {
@@ -124,12 +132,20 @@ char *cdotenvExpand(const char *s) {
     return out;
 }
 
-int cdotenvNextToken(size_t *offset, const char *buffer, size_t size) {
+int cdotenvNextToken(size_t *offset, const char *buffer, size_t size, bool reset) {
     static bool singleQuoteOpen = false;
     static bool doubleQuoteOpen = false;
     static bool tripleSingleQuoteOpen = false;
     static bool tripleDoubleQuoteOpen = false;
     static bool seenEquals = false;
+
+    if (reset) {
+        singleQuoteOpen = false;
+        doubleQuoteOpen = false;
+        tripleSingleQuoteOpen = false;
+        tripleDoubleQuoteOpen = false;
+        seenEquals = false;
+    }
 
     bool quoted = singleQuoteOpen || doubleQuoteOpen || tripleSingleQuoteOpen || tripleDoubleQuoteOpen;
 
@@ -261,11 +277,11 @@ int cdotenvNextToken(size_t *offset, const char *buffer, size_t size) {
     return CDOTENV_TOKEN_TYPE_STRING;
 }
 
-void parseDotEnv(const char* s, size_t size, cdotenvVars* vars) {
-    if (vars == NULL) return;
+void parseDotEnv(const char* s, size_t size, cdotenvVars* vars, cdotenvReturn* status) {
+    if (vars == NULL || status == NULL) return;
     size_t offset = 0;
     size_t previous = 0;
-    int currentToken = cdotenvNextToken(&offset, s, size);
+    int currentToken = cdotenvNextToken(&offset, s, size, true);
     char *currentKey = NULL;
     char *currentValue = NULL;
     bool seenEquals = false;
@@ -307,7 +323,7 @@ void parseDotEnv(const char* s, size_t size, cdotenvVars* vars) {
                 break;
         }
         previous = offset;
-        currentToken = cdotenvNextToken(&offset, s, size);
+        currentToken = cdotenvNextToken(&offset, s, size, false);
     }
 
     if (vars->count > 0) {
@@ -317,9 +333,12 @@ void parseDotEnv(const char* s, size_t size, cdotenvVars* vars) {
                 1);
         }
     }
+
+    status->errorCode = CDOTENV_TOKEN_TYPE_ERROR ? CDOTENV_ERROR : CDOTENV_OK;
+    status->offset = offset;
 }
 
-void loadDotEnv(const char* filename) {
+void loadDotEnv(const char* filename, cdotenvReturn* status) {
     FILE *file = fopen(filename, "r");
     if (!file) return;
 
@@ -336,7 +355,8 @@ void loadDotEnv(const char* filename) {
     fclose(file);
 
     cdotenvVars vars = {NULL, 0, 0 };
-    parseDotEnv(buffer, size, &vars);
+    parseDotEnv(buffer, size, &vars, status);
+    free(buffer);
 }
 #endif
 
