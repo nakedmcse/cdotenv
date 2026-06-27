@@ -138,9 +138,7 @@ void test_tokenizer(void) {
 
 void test_tokenizer_error(void) {
     const char* simpleError = "key=value=value2";
-    const char* unclosedQuote = "key='unclosed";
     size_t len = strlen(simpleError);
-    size_t ulen = strlen(unclosedQuote);
     size_t offset = 0;
     size_t previous = 0;
 
@@ -156,23 +154,6 @@ void test_tokenizer_error(void) {
     token = cdotenvNextToken(&offset, simpleError, len, false);
     assert(token == CDOTENV_TOKEN_TYPE_ERROR);
     assert(offset == 9);
-
-    offset = 0;
-    previous = 0;
-    token = cdotenvNextToken(&offset, unclosedQuote, ulen, true);
-    assert(token == CDOTENV_TOKEN_TYPE_STRING);
-    char *ukey = strndup(unclosedQuote+previous, offset-previous);
-    assert(strncmp(ukey, "key", 3) == 0);
-
-    token = cdotenvNextToken(&offset, unclosedQuote, ulen, false);
-    assert(token == CDOTENV_TOKEN_TYPE_EQUALS);
-
-    token = cdotenvNextToken(&offset, unclosedQuote, ulen, false);
-    assert(token == CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_OPEN);
-
-    token = cdotenvNextToken(&offset, unclosedQuote, ulen, false);
-    assert(token == CDOTENV_TOKEN_TYPE_ERROR);
-    assert(offset == ulen);
 
     printf("Tokenizer error test passed\n");
 }
@@ -202,9 +183,35 @@ void test_parser(void) {
     printf("Parser test passed\n");
 }
 
+void test_parser_error(void) {
+    const char* simpleVariables = "var1=one\nvar2=two\nvar3='three";
+    size_t simpleLen = strlen(simpleVariables);
+    cdotenvVars simpleVars = {NULL, 0, 0};
+    cdotenvReturn status = {CDOTENV_OK, 0};
+
+    parseDotEnv(simpleVariables, simpleLen, &simpleVars, &status);
+    assert(status.errorCode == CDOTENV_ERROR);
+    assert(simpleVars.count == 3);
+    assert(strncmp(simpleVars.items[0].key, "var1", 4) == 0);
+    assert(strncmp(simpleVars.items[0].value, "one", 3) == 0);
+    assert(simpleVars.items[0].singleQuoted == false);
+    assert(strncmp(getenv("var1"), simpleVars.items[0].value, 3) == 0);
+    assert(strncmp(simpleVars.items[1].key, "var2", 4) == 0);
+    assert(strncmp(simpleVars.items[1].value, "two", 3) == 0);
+    assert(simpleVars.items[1].singleQuoted == false);
+    assert(strncmp(getenv("var2"), simpleVars.items[1].value, 3) == 0);
+    assert(strncmp(simpleVars.items[2].key, "var3", 4) == 0);
+    assert(strncmp(simpleVars.items[2].value, "three", 3) == 0);
+    assert(simpleVars.items[2].singleQuoted == true);
+    assert(strncmp(getenv("var3"), simpleVars.items[2].value, 3) == 0);
+
+    printf("Parser error test passed\n");
+}
+
 int main(void) {
     test_tokenizer();
     test_tokenizer_error();
     test_parser();
+    test_parser_error();
     return 0;
 }

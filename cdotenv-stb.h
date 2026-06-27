@@ -265,15 +265,6 @@ int cdotenvNextToken(size_t *offset, const char *buffer, size_t size, bool reset
         (*offset)++;
     }
 
-    if (quoted && *offset == size) {
-        doubleQuoteOpen = false;
-        singleQuoteOpen = false;
-        tripleDoubleQuoteOpen = false;
-        tripleSingleQuoteOpen = false;
-        seenEquals = false;
-        return CDOTENV_TOKEN_TYPE_ERROR;
-    }
-
     return CDOTENV_TOKEN_TYPE_STRING;
 }
 
@@ -286,6 +277,9 @@ void parseDotEnv(const char* s, size_t size, cdotenvVars* vars, cdotenvReturn* s
     char *currentValue = NULL;
     bool seenEquals = false;
     bool inSingleQuote = false;
+    bool inDoubleQuote = false;
+    bool inTripleSingleQuote = false;
+    bool inTripleDoubleQuote = false;
 
     while (currentToken != CDOTENV_TOKEN_TYPE_EOF && currentToken != CDOTENV_TOKEN_TYPE_ERROR) {
         switch (currentToken) {
@@ -310,13 +304,35 @@ void parseDotEnv(const char* s, size_t size, cdotenvVars* vars, cdotenvReturn* s
                 break;
 
             case CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_OPEN:
-            case CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_OPEN_TRIPLE:
                 inSingleQuote = true;
                 break;
 
+            case CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_OPEN_TRIPLE:
+                inTripleSingleQuote = true;
+                break;
+
             case CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_CLOSE:
-            case CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_CLOSE_TRIPLE:
                 inSingleQuote = false;
+                break;
+
+            case CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_CLOSE_TRIPLE:
+                inTripleSingleQuote = false;
+                break;
+
+            case CDOTENV_TOKEN_TYPE_DOUBLE_QUOTE_OPEN:
+                inDoubleQuote = true;
+                break;
+
+            case CDOTENV_TOKEN_TYPE_DOUBLE_QUOTE_OPEN_TRIPLE:
+                inTripleDoubleQuote = true;
+                break;
+
+            case CDOTENV_TOKEN_TYPE_DOUBLE_QUOTE_CLOSE:
+                inDoubleQuote = false;
+                break;
+
+            case CDOTENV_TOKEN_TYPE_DOUBLE_QUOTE_CLOSE_TRIPLE:
+                inTripleDoubleQuote = false;
                 break;
 
             default:
@@ -334,7 +350,9 @@ void parseDotEnv(const char* s, size_t size, cdotenvVars* vars, cdotenvReturn* s
         }
     }
 
-    status->errorCode = CDOTENV_TOKEN_TYPE_ERROR ? CDOTENV_ERROR : CDOTENV_OK;
+    bool quoted = inDoubleQuote || inSingleQuote || inTripleDoubleQuote || inTripleSingleQuote;
+
+    status->errorCode = currentToken == CDOTENV_TOKEN_TYPE_ERROR || quoted ? CDOTENV_ERROR : CDOTENV_OK;
     status->offset = offset;
 }
 
