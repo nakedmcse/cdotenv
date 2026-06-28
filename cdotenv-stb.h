@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <regex.h>
 
 typedef struct cdotenvKV {
     char* key;
@@ -27,7 +28,6 @@ typedef struct cdotenvReturn {
 void parseDotEnv(const char* s, size_t size, cdotenvVars* vars, cdotenvReturn* status);
 void loadDotEnv(const char* filename, cdotenvReturn* status);
 int cdotenvNextToken(size_t *offset, const char *buffer, size_t size, bool reset);
-static bool cdotenvAppendStr(char **out, size_t *len, size_t *cap, const char *s, size_t n);
 char *cdotenvExpand(const char *s);
 
 #define CDOTENV_TOKEN_TYPE_ERROR -1
@@ -57,6 +57,16 @@ static inline void cdotenvVarsAppend(cdotenvVars *vars, cdotenvKV kv) {
 };
 
 #ifdef CDOTENV_STB_IMPLEMENTATION
+static bool checkRegex(const char *s, const char *r) {
+    regex_t regex;
+    if (regcomp(&regex, r, REG_EXTENDED) != 0) {
+        return false;
+    }
+    int result = regexec(&regex, s, 0, NULL, 0);
+    regfree(&regex);
+    return result == 0;
+}
+
 static bool cdotenvAppendStr(char **out, size_t *len, size_t *cap, const char *s, size_t n) {
     if (*len + n + 1 > *cap) {
         size_t new_cap = *cap ? *cap : 64;
@@ -290,8 +300,12 @@ void parseDotEnv(const char* s, size_t size, cdotenvVars* vars, cdotenvReturn* s
                     cdotenvVarsAppend(vars, kv);
                 }
                 else {
-                    // TODO: Validate Key
                     currentKey = strndup(s+previous, offset-previous);
+                    if (!checkRegex(currentKey, "^[a-zA-Z_]+[a-zA-Z0-9_]*$")) {
+                        status->errorCode = CDOTENV_ERROR;
+                        status->offset = previous;
+                        return;
+                    }
                 }
                 break;
 

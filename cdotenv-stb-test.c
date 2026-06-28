@@ -205,6 +205,16 @@ void test_parser_error(void) {
     assert(simpleVars.items[2].singleQuoted == true);
     assert(strncmp(getenv("var3"), simpleVars.items[2].value, 3) == 0);
 
+    const char* badName = "var1=one\nvar-2=bad";
+    size_t badLen = strlen(badName);
+    cdotenvVars badVars = {NULL, 0, 0};
+    cdotenvReturn badNameStatus = {CDOTENV_OK, 0};
+
+    parseDotEnv(badName, badLen, &badVars, &badNameStatus);
+    assert(badNameStatus.errorCode == CDOTENV_ERROR);
+    assert(badNameStatus.offset == 9);
+    assert(badVars.count == 1);
+
     printf("Parser error test passed\n");
 }
 
