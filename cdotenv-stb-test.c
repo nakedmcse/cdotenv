@@ -180,6 +180,16 @@ void test_parser(void) {
     assert(simpleVars.items[2].singleQuoted == true);
     assert(strncmp(getenv("var3"), simpleVars.items[2].value, 3) == 0);
 
+    const char* simpleReplacement = "name=myname\nemail=${name}@email.com";
+    size_t replLen = strlen(simpleReplacement);
+    cdotenvVars replVars = {NULL, 0, 0};
+    cdotenvReturn status2 = {CDOTENV_OK, 0};
+
+    parseDotEnv(simpleReplacement, replLen, &replVars, &status2);
+    assert(status2.errorCode == CDOTENV_OK);
+    assert(replVars.count == 2);
+    assert(strncmp(getenv("email"), "myname@email.com", 16) == 0);
+
     printf("Parser test passed\n");
 }
 
