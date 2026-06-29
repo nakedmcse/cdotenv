@@ -189,6 +189,12 @@ void test_parser(void) {
     assert(status2.errorCode == CDOTENV_OK);
     assert(replVars.count == 2);
     assert(strncmp(getenv("email"), "myname@email.com", 16) == 0);
+    assert(strncmp(replVars.items[1].value, "myname@email.com", 16) == 0);
+
+    cdotenvFree(&replVars);
+    assert(replVars.items == NULL);
+    assert(replVars.count == 0);
+    assert(replVars.capacity == 0);
 
     printf("Parser test passed\n");
 }

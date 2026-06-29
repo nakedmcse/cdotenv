@@ -27,6 +27,7 @@ typedef struct cdotenvReturn {
 
 void parseDotEnv(const char* s, size_t size, cdotenvVars* vars, cdotenvReturn* status);
 void loadDotEnv(const char* filename, cdotenvReturn* status);
+void cdotenvFree(cdotenvVars *v);
 int cdotenvNextToken(size_t *offset, const char *buffer, size_t size, bool reset);
 char *cdotenvExpand(const char *s);
 
@@ -140,6 +141,18 @@ char *cdotenvExpand(const char *s) {
     }
 
     return out;
+}
+
+void cdotenvFree(cdotenvVars *v) {
+    if (!v) return;
+    for (size_t i = 0; i < v->count; i++) {
+        free(v->items[i].key);
+        free(v->items[i].value);
+    }
+    free(v->items);
+    v->items = NULL;
+    v->count = 0;
+    v->capacity = 0;
 }
 
 int cdotenvNextToken(size_t *offset, const char *buffer, size_t size, bool reset) {
@@ -357,10 +370,16 @@ void parseDotEnv(const char* s, size_t size, cdotenvVars* vars, cdotenvReturn* s
     }
 
     if (vars->count > 0) {
+        char* expanded = NULL;
         for (size_t i = 0; i < vars->count; i++) {
+            expanded = vars->items[i].singleQuoted ? vars->items[i].value : cdotenvExpand(vars->items[i].value);
             setenv(vars->items[i].key,
-                vars->items[i].singleQuoted ? vars->items[i].value : cdotenvExpand(vars->items[i].value),
+                expanded,
                 1);
+            if (expanded != vars->items[i].value) {
+                free(vars->items[i].value);
+                vars->items[i].value = expanded;
+            }
         }
     }
 
@@ -388,6 +407,7 @@ void loadDotEnv(const char* filename, cdotenvReturn* status) {
 
     cdotenvVars vars = {NULL, 0, 0 };
     parseDotEnv(buffer, size, &vars, status);
+    cdotenvFree(&vars);
     free(buffer);
 }
 #endif
