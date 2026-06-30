@@ -101,7 +101,7 @@ void test_tokenizer(void) {
     token = cdotenvNextToken(&offset, tripleValue, tlen, false);
     assert(token == CDOTENV_TOKEN_TYPE_STRING);
     char *tdvalue = strndup(tripleValue+previous, offset-previous);
-    assert(strncmp(tdvalue, "\n#one\n\"two\"\nthree\n", 24) == 0);
+    assert(strncmp(tdvalue, "#one\n\"two\"\nthree\n", 24) == 0);
 
     token = cdotenvNextToken(&offset, tripleValue, tlen, false);
     assert(token == CDOTENV_TOKEN_TYPE_DOUBLE_QUOTE_CLOSE_TRIPLE);
@@ -125,7 +125,7 @@ void test_tokenizer(void) {
     token = cdotenvNextToken(&offset, tripleValue, tlen, false);
     assert(token == CDOTENV_TOKEN_TYPE_STRING);
     char *tsvalue = strndup(tripleValue+previous, offset-previous);
-    assert(strncmp(tsvalue, "\n#one\n\"two\"\nthree\n", 24) == 0);
+    assert(strncmp(tsvalue, "#one\n\"two\"\nthree\n", 24) == 0);
 
     token = cdotenvNextToken(&offset, tripleValue, tlen, false);
     assert(token == CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_CLOSE_TRIPLE);
@@ -234,10 +234,24 @@ void test_parser_error(void) {
     printf("Parser error test passed\n");
 }
 
+void test_parser_load(void) {
+    cdotenvReturn status = {CDOTENV_OK, 0};
+    loadDotEnv(".env.example", &status);
+
+    assert(status.errorCode == CDOTENV_OK);
+    assert(strncmp(getenv("var1"), "one", 3) == 0);
+    assert(strncmp(getenv("var2"), "double quoted", 13) == 0);
+    assert(strncmp(getenv("var3"), "one@example", 11) == 0);
+    assert(strncmp(getenv("var4"), "${var1}@example", 15) == 0);
+    assert(strncmp(getenv("var5"), "one\ntwo\nthree", 13) == 0);
+    printf("Parser load test passed\n");
+}
+
 int main(void) {
     test_tokenizer();
     test_tokenizer_error();
     test_parser();
     test_parser_error();
+    test_parser_load();
     return 0;
 }

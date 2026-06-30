@@ -208,6 +208,8 @@ int cdotenvNextToken(size_t *offset, const char *buffer, size_t size, bool reset
         (*offset) += 3;
         tripleDoubleQuoteOpen = !tripleDoubleQuoteOpen;
 
+        if (*offset + 1 < size && tripleDoubleQuoteOpen && buffer[*offset] == '\n') (*offset)++;
+
         return tripleDoubleQuoteOpen
             ? CDOTENV_TOKEN_TYPE_DOUBLE_QUOTE_OPEN_TRIPLE
             : CDOTENV_TOKEN_TYPE_DOUBLE_QUOTE_CLOSE_TRIPLE;
@@ -216,6 +218,8 @@ int cdotenvNextToken(size_t *offset, const char *buffer, size_t size, bool reset
     if (*offset + 2 < size && c == '\'' && buffer[*offset + 1] == '\'' && buffer[*offset + 2] == '\'') {
         (*offset) += 3;
         tripleSingleQuoteOpen = !tripleSingleQuoteOpen;
+
+        if (*offset + 1 < size && tripleSingleQuoteOpen && buffer[*offset] == '\n') (*offset)++;
 
         return tripleSingleQuoteOpen
             ? CDOTENV_TOKEN_TYPE_SINGLE_QUOTE_OPEN_TRIPLE
