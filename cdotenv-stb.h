@@ -26,7 +26,7 @@ typedef struct cdotenvReturn {
 } cdotenvReturn;
 
 void parseDotEnv(const char* s, size_t size, cdotenvVars* vars, cdotenvReturn* status);
-void loadDotEnv(const char* filename, cdotenvReturn* status);
+bool loadDotEnv(const char* filename, cdotenvReturn* status);
 void cdotenvFree(cdotenvVars *v);
 int cdotenvNextToken(size_t *offset, const char *buffer, size_t size, bool reset);
 char *cdotenvExpand(const char *s);
@@ -393,9 +393,9 @@ void parseDotEnv(const char* s, size_t size, cdotenvVars* vars, cdotenvReturn* s
     status->offset = offset;
 }
 
-void loadDotEnv(const char* filename, cdotenvReturn* status) {
+bool loadDotEnv(const char* filename, cdotenvReturn* status) {
     FILE *file = fopen(filename, "r");
-    if (!file) return;
+    if (!file) return false;
 
     fseek(file, 0, SEEK_END);
     size_t size = ftell(file);
@@ -404,7 +404,7 @@ void loadDotEnv(const char* filename, cdotenvReturn* status) {
     char *buffer = malloc(size + 1);
     if (!buffer) {
         fclose(file);
-        return;
+        return false;
     }
     fread(buffer, size, 1, file);
     fclose(file);
@@ -413,6 +413,7 @@ void loadDotEnv(const char* filename, cdotenvReturn* status) {
     parseDotEnv(buffer, size, &vars, status);
     cdotenvFree(&vars);
     free(buffer);
+    return true;
 }
 #endif
 

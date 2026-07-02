@@ -34,7 +34,10 @@ to the `loadDotEnv` function:
 
 ```c
 cdotenvReturn status = {CDOTENV_OK, 0};
-loadDotEnv(".env.example", &status);
+
+if (!loadDotEnv(".env.example", &status)) {
+    printf("Failed to load file\n");
+}
 
 if(status.errorCode != CDOTENV_OK) {
     printf("Error parsing at %lu offset\n",status.offset);

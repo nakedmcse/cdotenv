@@ -236,9 +236,10 @@ void test_parser_error(void) {
 
 void test_parser_load(void) {
     cdotenvReturn status = {CDOTENV_OK, 0};
-    loadDotEnv(".env.example", &status);
+    bool loaded = loadDotEnv(".env.example", &status);
 
     assert(status.errorCode == CDOTENV_OK);
+    assert(loaded == true);
     assert(strncmp(getenv("var1"), "one", 3) == 0);
     assert(strncmp(getenv("var2"), "double quoted", 13) == 0);
     assert(strncmp(getenv("var3"), "one@example", 11) == 0);
