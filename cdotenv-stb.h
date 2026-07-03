@@ -25,8 +25,8 @@ typedef struct cdotenvReturn {
     size_t offset;
 } cdotenvReturn;
 
-void parseDotEnv(const char* s, size_t size, cdotenvVars* vars, cdotenvReturn* status);
-bool loadDotEnv(const char* filename, cdotenvReturn* status);
+void parseDotEnv(const char* s, size_t size, cdotenvVars* vars, cdotenvReturn* status, bool nomalloc);
+bool loadDotEnv(const char* filename, cdotenvReturn* status, bool nomalloc);
 void cdotenvFree(cdotenvVars *v);
 int cdotenvNextToken(size_t *offset, const char *buffer, size_t size, bool reset);
 char *cdotenvExpand(const char *s);
@@ -49,8 +49,17 @@ char *cdotenvExpand(const char *s);
 #define CDOTENV_ERROR -1
 #define CDOTENV_OK 0
 
-static inline void cdotenvVarsAppend(cdotenvVars *vars, cdotenvKV kv) {
+#ifndef CDOTENV_NOMALLOC_MAX_ITEMS
+#define CDOTENV_NOMALLOC_MAX_ITEMS 256
+#endif
+
+#ifndef CDOTENV_NOMALLOC_MAX_STRING
+#define CDOTENV_NOMALLOC_MAX_STRING 1024
+#endif
+
+static inline void cdotenvVarsAppend(cdotenvVars *vars, cdotenvKV kv, bool nomalloc) {
     if (vars->count >= vars->capacity) {
+        if (nomalloc) return;
         vars->capacity = vars->capacity ? vars->capacity * 2 : 256;
         vars->items = realloc(vars->items, vars->capacity * sizeof(cdotenvKV));
     }
@@ -295,7 +304,7 @@ int cdotenvNextToken(size_t *offset, const char *buffer, size_t size, bool reset
     return CDOTENV_TOKEN_TYPE_STRING;
 }
 
-void parseDotEnv(const char* s, size_t size, cdotenvVars* vars, cdotenvReturn* status) {
+void parseDotEnv(const char* s, size_t size, cdotenvVars* vars, cdotenvReturn* status, bool nomalloc) {
     if (vars == NULL || status == NULL) return;
     size_t offset = 0;
     size_t previous = 0;
@@ -314,7 +323,7 @@ void parseDotEnv(const char* s, size_t size, cdotenvVars* vars, cdotenvReturn* s
                 if (seenEquals && currentKey) {
                     currentValue = strndup(s+previous, offset-previous);
                     const cdotenvKV kv = {currentKey, currentValue, inSingleQuote};
-                    cdotenvVarsAppend(vars, kv);
+                    cdotenvVarsAppend(vars, kv, nomalloc);
                 }
                 else {
                     currentKey = strndup(s+previous, offset-previous);
@@ -393,7 +402,7 @@ void parseDotEnv(const char* s, size_t size, cdotenvVars* vars, cdotenvReturn* s
     status->offset = offset;
 }
 
-bool loadDotEnv(const char* filename, cdotenvReturn* status) {
+bool loadDotEnv(const char* filename, cdotenvReturn* status, bool nomalloc) {
     FILE *file = fopen(filename, "r");
     if (!file) return false;
 
@@ -410,7 +419,7 @@ bool loadDotEnv(const char* filename, cdotenvReturn* status) {
     fclose(file);
 
     cdotenvVars vars = {NULL, 0, 0 };
-    parseDotEnv(buffer, size, &vars, status);
+    parseDotEnv(buffer, size, &vars, status, nomalloc);
     cdotenvFree(&vars);
     free(buffer);
     return true;

@@ -158,13 +158,13 @@ void test_tokenizer_error(void) {
     printf("Tokenizer error test passed\n");
 }
 
-void test_parser(void) {
+void test_parser(bool nomalloc) {
     const char* simpleVariables = "var1=one\nvar2=two\nvar3='three'";
     size_t simpleLen = strlen(simpleVariables);
     cdotenvVars simpleVars = {NULL, 0, 0};
     cdotenvReturn status = {CDOTENV_OK, 0};
 
-    parseDotEnv(simpleVariables, simpleLen, &simpleVars, &status);
+    parseDotEnv(simpleVariables, simpleLen, &simpleVars, &status, nomalloc);
     assert(status.errorCode == CDOTENV_OK);
     assert(simpleVars.count == 3);
     assert(strncmp(simpleVars.items[0].key, "var1", 4) == 0);
@@ -185,7 +185,7 @@ void test_parser(void) {
     cdotenvVars replVars = {NULL, 0, 0};
     cdotenvReturn status2 = {CDOTENV_OK, 0};
 
-    parseDotEnv(simpleReplacement, replLen, &replVars, &status2);
+    parseDotEnv(simpleReplacement, replLen, &replVars, &status2, nomalloc);
     assert(status2.errorCode == CDOTENV_OK);
     assert(replVars.count == 2);
     assert(strncmp(getenv("email"), "myname@email.com", 16) == 0);
@@ -196,16 +196,16 @@ void test_parser(void) {
     assert(replVars.count == 0);
     assert(replVars.capacity == 0);
 
-    printf("Parser test passed\n");
+    printf(nomalloc ? "Parser test with nomalloc passed\n" : "Parser test passed\n");
 }
 
-void test_parser_error(void) {
+void test_parser_error(bool nomalloc) {
     const char* simpleVariables = "var1=one\nvar2=two\nvar3='three";
     size_t simpleLen = strlen(simpleVariables);
     cdotenvVars simpleVars = {NULL, 0, 0};
     cdotenvReturn status = {CDOTENV_OK, 0};
 
-    parseDotEnv(simpleVariables, simpleLen, &simpleVars, &status);
+    parseDotEnv(simpleVariables, simpleLen, &simpleVars, &status, nomalloc);
     assert(status.errorCode == CDOTENV_ERROR);
     assert(simpleVars.count == 3);
     assert(strncmp(simpleVars.items[0].key, "var1", 4) == 0);
@@ -226,17 +226,17 @@ void test_parser_error(void) {
     cdotenvVars badVars = {NULL, 0, 0};
     cdotenvReturn badNameStatus = {CDOTENV_OK, 0};
 
-    parseDotEnv(badName, badLen, &badVars, &badNameStatus);
+    parseDotEnv(badName, badLen, &badVars, &badNameStatus, nomalloc);
     assert(badNameStatus.errorCode == CDOTENV_ERROR);
     assert(badNameStatus.offset == 9);
     assert(badVars.count == 1);
 
-    printf("Parser error test passed\n");
+    printf(nomalloc ? "Parser error test with nomalloc passed\n" : "Parser error test passed\n");
 }
 
-void test_parser_load(void) {
+void test_parser_load(bool nomalloc) {
     cdotenvReturn status = {CDOTENV_OK, 0};
-    bool loaded = loadDotEnv(".env.example", &status);
+    bool loaded = loadDotEnv(".env.example", &status, nomalloc);
 
     assert(status.errorCode == CDOTENV_OK);
     assert(loaded == true);
@@ -245,14 +245,14 @@ void test_parser_load(void) {
     assert(strncmp(getenv("var3"), "one@example", 11) == 0);
     assert(strncmp(getenv("var4"), "${var1}@example", 15) == 0);
     assert(strncmp(getenv("var5"), "one\ntwo\nthree", 13) == 0);
-    printf("Parser load test passed\n");
+    printf(nomalloc ? "Parser load test with nomalloc passed\n" : "Parser load test passed\n");
 }
 
 int main(void) {
     test_tokenizer();
     test_tokenizer_error();
-    test_parser();
-    test_parser_error();
-    test_parser_load();
+    test_parser(false);
+    test_parser_error(false);
+    test_parser_load(false);
     return 0;
 }
