@@ -248,11 +248,23 @@ void test_parser_load(bool nomalloc) {
     printf(nomalloc ? "Parser load test with nomalloc passed\n" : "Parser load test passed\n");
 }
 
+void test_expand_nomalloc(void) {
+    const char *s = "var1=\"${one}\"\nvar2=\"${two}\"";
+    char t[CDOTENV_NOMALLOC_MAX_STRING];
+    setenv("one", "one expansion", 1);
+    setenv("two", "two expansion", 1);
+    cdotenvExpandNoMalloc(s, t);
+
+    assert(strncmp(t, "var1=\"one expansion\"\nvar2=\"two expansion\"", 41) == 0);
+    printf("Expand No Malloc test passed\n");
+}
+
 int main(void) {
     test_tokenizer();
     test_tokenizer_error();
     test_parser(false);
     test_parser_error(false);
     test_parser_load(false);
+    test_expand_nomalloc();
     return 0;
 }

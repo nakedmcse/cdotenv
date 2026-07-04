@@ -30,6 +30,7 @@ bool loadDotEnv(const char* filename, cdotenvReturn* status, bool nomalloc);
 void cdotenvFree(cdotenvVars *v);
 int cdotenvNextToken(size_t *offset, const char *buffer, size_t size, bool reset);
 char *cdotenvExpand(const char *s);
+void cdotenvExpandNoMalloc(const char *s, char *t);
 
 #define CDOTENV_TOKEN_TYPE_ERROR -1
 #define CDOTENV_TOKEN_TYPE_EOF 0
@@ -97,6 +98,45 @@ static bool cdotenvAppendStr(char **out, size_t *len, size_t *cap, const char *s
     (*out)[*len] = '\0';
 
     return true;
+}
+
+void cdotenvExpandNoMalloc(const char *s, char *t) {
+    if (!s) return;
+    size_t len = 0;
+
+    for (size_t i = 0; s[i] != '\0' && len < CDOTENV_NOMALLOC_MAX_STRING;) {
+        if (s[i] == '$' && s[i + 1] == '{') {
+            const char *start = s + i + 2;
+            const char *end = strchr(start, '}');
+
+            if (end) {
+                size_t name_len = (size_t)(end - start);
+                if (name_len < CDOTENV_NOMALLOC_MAX_STRING) {
+                    char name[name_len + 1];
+                    memcpy(name, start, name_len);
+                    name[name_len] = '\0';
+                    const char *value = getenv(name);
+
+                    if (value) {
+                        size_t expansion_len = strlen(value);
+                        if (len + expansion_len < CDOTENV_NOMALLOC_MAX_STRING) {
+                            memcpy(t+len, value, expansion_len);
+                            len += expansion_len;
+                        } else {
+                            memcpy(t+len, value, CDOTENV_NOMALLOC_MAX_STRING - len);
+                            len += CDOTENV_NOMALLOC_MAX_STRING - len;
+                        }
+                    }
+
+                    i = (size_t)(end - s) + 1;
+                    continue;
+                }
+            }
+        }
+
+        t[len++] = s[i++];
+    }
+    t[len] = '\0';
 }
 
 char *cdotenvExpand(const char *s) {
