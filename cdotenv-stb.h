@@ -2,6 +2,15 @@
 
 #ifndef CDOTENV_STB_H
 #define CDOTENV_STB_H
+
+#ifndef CDOTENV_NOMALLOC_MAX_ITEMS
+#define CDOTENV_NOMALLOC_MAX_ITEMS 256
+#endif
+
+#ifndef CDOTENV_NOMALLOC_MAX_STRING
+#define CDOTENV_NOMALLOC_MAX_STRING 1024
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
@@ -14,8 +23,15 @@ typedef struct cdotenvKV {
     bool singleQuoted;
 } cdotenvKV;
 
+typedef struct cdotenvKVnomalloc {
+    char key[CDOTENV_NOMALLOC_MAX_STRING];
+    char value[CDOTENV_NOMALLOC_MAX_STRING];
+    bool singleQuoted;
+} cdotenvKVnomalloc;
+
 typedef struct cdotenvVars {
     cdotenvKV* items;
+    cdotenvKVnomalloc* itemsNoMalloc;
     size_t count;
     size_t capacity;
 } cdotenvVars;
@@ -50,19 +66,15 @@ void cdotenvExpandNoMalloc(const char *s, char *t);
 #define CDOTENV_ERROR -1
 #define CDOTENV_OK 0
 
-#ifndef CDOTENV_NOMALLOC_MAX_ITEMS
-#define CDOTENV_NOMALLOC_MAX_ITEMS 256
-#endif
-
-#ifndef CDOTENV_NOMALLOC_MAX_STRING
-#define CDOTENV_NOMALLOC_MAX_STRING 1024
-#endif
-
-static inline void cdotenvVarsAppend(cdotenvVars *vars, cdotenvKV kv, bool nomalloc) {
+static inline void cdotenvVarsAppend(cdotenvVars *vars, cdotenvKV kv, cdotenvKVnomalloc kvnm, bool nomalloc) {
     if (vars->count >= vars->capacity) {
         if (nomalloc) return;
         vars->capacity = vars->capacity ? vars->capacity * 2 : 256;
         vars->items = realloc(vars->items, vars->capacity * sizeof(cdotenvKV));
+    }
+    if (nomalloc) {
+        vars->itemsNoMalloc[vars->count++] = kvnm;
+        return;
     }
     vars->items[vars->count++] = kv;
 };
@@ -363,7 +375,13 @@ void parseDotEnv(const char* s, size_t size, cdotenvVars* vars, cdotenvReturn* s
                 if (seenEquals && currentKey) {
                     currentValue = strndup(s+previous, offset-previous);
                     const cdotenvKV kv = {currentKey, currentValue, inSingleQuote};
-                    cdotenvVarsAppend(vars, kv, nomalloc);
+                    cdotenvKVnomalloc kvnm;
+                    kvnm.singleQuoted = inSingleQuote;
+                    if (nomalloc) {
+                        memcpy(kvnm.key, currentKey, strlen(currentKey));
+                        memcpy(kvnm.value, currentValue, strlen(currentValue));
+                    }
+                    cdotenvVarsAppend(vars, kv, kvnm, nomalloc);
                 }
                 else {
                     currentKey = strndup(s+previous, offset-previous);
@@ -425,6 +443,19 @@ void parseDotEnv(const char* s, size_t size, cdotenvVars* vars, cdotenvReturn* s
     if (vars->count > 0) {
         char* expanded = NULL;
         for (size_t i = 0; i < vars->count; i++) {
+            if (nomalloc) {
+                char expandedNoMalloc[CDOTENV_NOMALLOC_MAX_STRING];
+                if (vars->itemsNoMalloc[i].singleQuoted) {
+                    memcpy(expandedNoMalloc, vars->itemsNoMalloc[i].value, CDOTENV_NOMALLOC_MAX_STRING);
+                } else {
+                    cdotenvExpandNoMalloc(vars->itemsNoMalloc[i].value, expandedNoMalloc);
+                    memcpy(vars->itemsNoMalloc[i].value, expandedNoMalloc, CDOTENV_NOMALLOC_MAX_STRING);
+                }
+                setenv(vars->itemsNoMalloc[i].key,
+                expandedNoMalloc,
+                1);
+                continue;
+            }
             expanded = vars->items[i].singleQuoted ? vars->items[i].value : cdotenvExpand(vars->items[i].value);
             setenv(vars->items[i].key,
                 expanded,
@@ -458,7 +489,7 @@ bool loadDotEnv(const char* filename, cdotenvReturn* status, bool nomalloc) {
     fread(buffer, size, 1, file);
     fclose(file);
 
-    cdotenvVars vars = {NULL, 0, 0 };
+    cdotenvVars vars = {NULL, NULL,0, 0 };
     parseDotEnv(buffer, size, &vars, status, nomalloc);
     cdotenvFree(&vars);
     free(buffer);
