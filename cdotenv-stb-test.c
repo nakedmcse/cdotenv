@@ -302,6 +302,7 @@ int main(void) {
     test_parser(true);
     test_parser_error(false);
     test_parser_load(false);
+    test_parser_load(true);
     test_expand_nomalloc();
     return 0;
 }

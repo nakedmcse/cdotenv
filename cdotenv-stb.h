@@ -481,6 +481,17 @@ bool loadDotEnv(const char* filename, cdotenvReturn* status, bool nomalloc) {
     size_t size = ftell(file);
     fseek(file, 0, SEEK_SET);
 
+    if (nomalloc) {
+        char buffer[size+1];
+        fread(buffer, 1, size, file);
+        fclose(file);
+
+        cdotenvKVnomalloc kvs[CDOTENV_NOMALLOC_MAX_ITEMS];
+        cdotenvVars vars = {NULL, kvs,0, CDOTENV_NOMALLOC_MAX_ITEMS};
+        parseDotEnv(buffer, size, &vars, status, nomalloc);
+        return true;
+    }
+
     char *buffer = malloc(size + 1);
     if (!buffer) {
         fclose(file);
