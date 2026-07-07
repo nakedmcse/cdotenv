@@ -238,34 +238,69 @@ void test_parser(bool nomalloc) {
 void test_parser_error(bool nomalloc) {
     const char* simpleVariables = "var1=one\nvar2=two\nvar3='three";
     size_t simpleLen = strlen(simpleVariables);
-    cdotenvVars simpleVars = {NULL, NULL, 0, 0};
-    cdotenvReturn status = {CDOTENV_OK, 0};
 
-    parseDotEnv(simpleVariables, simpleLen, &simpleVars, &status, nomalloc);
-    assert(status.errorCode == CDOTENV_ERROR);
-    assert(simpleVars.count == 3);
-    assert(strncmp(simpleVars.items[0].key, "var1", 4) == 0);
-    assert(strncmp(simpleVars.items[0].value, "one", 3) == 0);
-    assert(simpleVars.items[0].singleQuoted == false);
-    assert(strncmp(getenv("var1"), simpleVars.items[0].value, 3) == 0);
-    assert(strncmp(simpleVars.items[1].key, "var2", 4) == 0);
-    assert(strncmp(simpleVars.items[1].value, "two", 3) == 0);
-    assert(simpleVars.items[1].singleQuoted == false);
-    assert(strncmp(getenv("var2"), simpleVars.items[1].value, 3) == 0);
-    assert(strncmp(simpleVars.items[2].key, "var3", 4) == 0);
-    assert(strncmp(simpleVars.items[2].value, "three", 3) == 0);
-    assert(simpleVars.items[2].singleQuoted == true);
-    assert(strncmp(getenv("var3"), simpleVars.items[2].value, 3) == 0);
+    if (nomalloc) {
+        cdotenvKVnomalloc kvs[CDOTENV_NOMALLOC_MAX_ITEMS];
+        cdotenvVars simpleVars = {NULL, kvs, 0, CDOTENV_NOMALLOC_MAX_ITEMS};
+        cdotenvReturn status = {CDOTENV_OK, 0};
+
+        parseDotEnv(simpleVariables, simpleLen, &simpleVars, &status, nomalloc);
+        assert(status.errorCode == CDOTENV_ERROR);
+        assert(simpleVars.count == 3);
+        assert(strncmp(simpleVars.itemsNoMalloc[0].key, "var1", 4) == 0);
+        assert(strncmp(simpleVars.itemsNoMalloc[0].value, "one", 3) == 0);
+        assert(simpleVars.itemsNoMalloc[0].singleQuoted == false);
+        assert(strncmp(getenv("var1"), simpleVars.itemsNoMalloc[0].value, 3) == 0);
+        assert(strncmp(simpleVars.itemsNoMalloc[1].key, "var2", 4) == 0);
+        assert(strncmp(simpleVars.itemsNoMalloc[1].value, "two", 3) == 0);
+        assert(simpleVars.itemsNoMalloc[1].singleQuoted == false);
+        assert(strncmp(getenv("var2"), simpleVars.itemsNoMalloc[1].value, 3) == 0);
+        assert(strncmp(simpleVars.itemsNoMalloc[2].key, "var3", 4) == 0);
+        assert(strncmp(simpleVars.itemsNoMalloc[2].value, "three", 3) == 0);
+        assert(simpleVars.itemsNoMalloc[2].singleQuoted == true);
+        assert(strncmp(getenv("var3"), simpleVars.itemsNoMalloc[2].value, 3) == 0);
+    } else {
+        cdotenvVars simpleVars = {NULL, NULL, 0, 0};
+        cdotenvReturn status = {CDOTENV_OK, 0};
+
+        parseDotEnv(simpleVariables, simpleLen, &simpleVars, &status, nomalloc);
+        assert(status.errorCode == CDOTENV_ERROR);
+        assert(simpleVars.count == 3);
+        assert(strncmp(simpleVars.items[0].key, "var1", 4) == 0);
+        assert(strncmp(simpleVars.items[0].value, "one", 3) == 0);
+        assert(simpleVars.items[0].singleQuoted == false);
+        assert(strncmp(getenv("var1"), simpleVars.items[0].value, 3) == 0);
+        assert(strncmp(simpleVars.items[1].key, "var2", 4) == 0);
+        assert(strncmp(simpleVars.items[1].value, "two", 3) == 0);
+        assert(simpleVars.items[1].singleQuoted == false);
+        assert(strncmp(getenv("var2"), simpleVars.items[1].value, 3) == 0);
+        assert(strncmp(simpleVars.items[2].key, "var3", 4) == 0);
+        assert(strncmp(simpleVars.items[2].value, "three", 3) == 0);
+        assert(simpleVars.items[2].singleQuoted == true);
+        assert(strncmp(getenv("var3"), simpleVars.items[2].value, 3) == 0);
+    }
 
     const char* badName = "var1=one\nvar-2=bad";
     size_t badLen = strlen(badName);
-    cdotenvVars badVars = {NULL, NULL, 0, 0};
-    cdotenvReturn badNameStatus = {CDOTENV_OK, 0};
 
-    parseDotEnv(badName, badLen, &badVars, &badNameStatus, nomalloc);
-    assert(badNameStatus.errorCode == CDOTENV_ERROR);
-    assert(badNameStatus.offset == 9);
-    assert(badVars.count == 1);
+    if (nomalloc) {
+        cdotenvKVnomalloc kvs[CDOTENV_NOMALLOC_MAX_ITEMS];
+        cdotenvVars badVars = {NULL, kvs, 0, CDOTENV_NOMALLOC_MAX_ITEMS};
+        cdotenvReturn badNameStatus = {CDOTENV_OK, 0};
+
+        parseDotEnv(badName, badLen, &badVars, &badNameStatus, nomalloc);
+        assert(badNameStatus.errorCode == CDOTENV_ERROR);
+        assert(badNameStatus.offset == 9);
+        assert(badVars.count == 1);
+    } else {
+        cdotenvVars badVars = {NULL, NULL, 0, 0};
+        cdotenvReturn badNameStatus = {CDOTENV_OK, 0};
+
+        parseDotEnv(badName, badLen, &badVars, &badNameStatus, nomalloc);
+        assert(badNameStatus.errorCode == CDOTENV_ERROR);
+        assert(badNameStatus.offset == 9);
+        assert(badVars.count == 1);
+    }
 
     printf(nomalloc ? "Parser error test with nomalloc passed\n" : "Parser error test passed\n");
 }
@@ -301,6 +336,7 @@ int main(void) {
     test_parser(false);
     test_parser(true);
     test_parser_error(false);
+    test_parser_error(true);
     test_parser_load(false);
     test_parser_load(true);
     test_expand_nomalloc();
