@@ -17,6 +17,19 @@ the `cdotenv-stb.h` file to your project and then include it using:
 
 Define `CDOTENV_STB_IMPLEMENTATION` where you want the code added, otherwise it is just the header definitions.
 
+### No Malloc
+There is a path in the code that is written to not use malloc, instead just using plain arrays.  To use this you should 
+define the max size of a string and the max number of items:
+
+```c
+#define CDOTENV_STB_IMPLEMENTATION
+#define CDOTENV_NOMALLOC_MAX_ITEMS 256
+#define CDOTENV_NOMALLOC_MAX_STRING 1024
+#include "cdotenv-stb.h"
+```
+
+If you do not define them, they will default to 256 for the max number of items and 1024 for max string size.
+
 ### Testing
 The repository itself comes with a set of unit tests in the `cdotenv-stb-test.c` file, that can be built and run using 
 the following:
@@ -35,7 +48,20 @@ to the `loadDotEnv` function:
 ```c
 cdotenvReturn status = {CDOTENV_OK, 0};
 
-if (!loadDotEnv(".env.example", &status)) {
+if (!loadDotEnv(".env.example", &status, false)) {
+    printf("Failed to load file\n");
+}
+
+if(status.errorCode != CDOTENV_OK) {
+    printf("Error parsing at %lu offset\n",status.offset);
+}
+```
+
+For a no malloc file parse:
+```c
+cdotenvReturn status = {CDOTENV_OK, 0};
+
+if (!loadDotEnv(".env.example", &status, true)) {
     printf("Failed to load file\n");
 }
 
@@ -51,15 +77,33 @@ and status variable, then pass the string to the `parseDotEnv` function:
 ```c
 const char* simpleVariables = "var1=one\nvar2=two\nvar3='three'";
 size_t simpleLen = strlen(simpleVariables);
-cdotenvVars simpleVars = {NULL, 0, 0};
+cdotenvVars simpleVars = {NULL, NULL, 0, 0};
 cdotenvReturn status = {CDOTENV_OK, 0};
-parseDotEnv(simpleVariables, simpleLen, &simpleVars, &status);
+
+parseDotEnv(simpleVariables, simpleLen, &simpleVars, &status, false);
 
 if(status.errorCode != CDOTENV_OK) {
     printf("Error parsing at %lu offset\n",status.offset);
 }
 cdotenvFree(&simpleVars);
 ```
+
+For a no malloc string parse:
+```c
+const char* simpleVariables = "var1=one\nvar2=two\nvar3='three'";
+size_t simpleLen = strlen(simpleVariables);
+cdotenvKVnomalloc kvs[CDOTENV_NOMALLOC_MAX_ITEMS];
+cdotenvVars simpleVars = {NULL, kvs, 0, CDOTENV_NOMALLOC_MAX_ITEMS};
+cdotenvReturn status = {CDOTENV_OK, 0};
+
+parseDotEnv(simpleVariables, simpleLen, &simpleVars, &status, true);
+
+if(status.errorCode != CDOTENV_OK) {
+    printf("Error parsing at %lu offset\n",status.offset);
+}
+cdotenvFree(&simpleVars);
+```
+
 ### Errors
 The status variable is used to return if there is an error in the parse of either a file or a string, and at which 
 offset into the file or string that it occurred:
